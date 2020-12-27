@@ -164,7 +164,6 @@ class Seeker:
         self.pLook      = copy.deepcopy(self.Look)
         self.ppLook     = copy.deepcopy(self.pLook)
 
-
         self.firstrun   = True
 
         self.prev_Rm  = Vector3(9999999, 9999999, 9999999)
@@ -190,6 +189,9 @@ class Seeker:
         
         def normVm(Vval):
             return Vval/600
+
+        def normLk(Vval):
+            return Vval/1.57
         #pdb.set_trace()
         self.t2go       = 0
         #print('in seek : ',self.Missile.Qnb)
@@ -202,12 +204,11 @@ class Seeker:
         if t == 0 : 
             self.prevLOS = copy.deepcopy(self.LOS)
             #print('t=0 detected')
+        self.ppLook     = copy.deepcopy(self.pLook)
+        self.pLook      = copy.deepcopy(self.Look) 
+        Lookz, Looky    = self.azimNelev(Missile.Cnb.rotate(self.Rvec))
+        self.Look       = Vector3(0., Looky, Lookz)
 
-        #Lookz, Looky    = self.azimNelev(Vector3.cast(self.Missile.Qnb.inverse.rotate(self.Rvec.vec)))
-        #self.Look       = Vector3(0., Looky, Lookz)
-        self.Look       = Vector3.cast(np.arctan2(np.cross(self.direcVec.vec,self.Rvec.vec),\
-                                                    np.dot(self.direcVec.vec,self.Rvec.vec)))
-        
         RjxVj = np.cross(self.Rvec.vec, self.Vvec.vec)
         RjdRj = np.dot(self.Rvec.vec, self.Rvec.vec)
         Ldotn = RjxVj/RjdRj
@@ -217,12 +218,8 @@ class Seeker:
         self.Missile.reset_flag = False
         Vvecb = Vector3.cast(self.Missile.Qnb.inverse.rotate(self.Vvec.vec))
         return self.Rvec.mag, self.Look, self.dLOS, self.Missile.scavel,\
-                                                                    np.array([  normVm(Vvecb.x),\
-                                                                                normVm(Vvecb.y),\
-                                                                                normVm(Vvecb.z),\
-                                                                                normLd(self.dLOS.x),\
-                                                                                normLd(self.dLOS.y),\
-                                                                                normLd(self.dLOS.z)])
+                                                    np.array([  normLk(self.ppLook.y), normLk(self.pLook.y), normLk(self.Look.y),\
+                                                                normLk(self.ppLook.z), normLk(self.pLook.z), normLk(self.Look.z)])
                                                                                 
     def newStepStarts(self, t):
         if t != 0:
