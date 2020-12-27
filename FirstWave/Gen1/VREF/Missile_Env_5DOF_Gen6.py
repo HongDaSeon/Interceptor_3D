@@ -76,7 +76,7 @@ class Missile_3D:
         self.datt           = Vector3(0.,0.,0.)
         self.att            = initAtt
         self.Cnb            = DCM5DOF(self.att)
-        self.Cdelta         = DCN5DOF(Vector3(0.0,0.0,0.0))
+
         self.ControllerAccZ = Daseon.SecondOrder(5, 0.75, dt)
         self.ControllerAccY = Daseon.SecondOrder(5, 0.75, dt)
         self.acc            = Vector3(0.,0.,0.)
@@ -121,11 +121,17 @@ class Missile_3D:
         self.att            = _att
         self.acc            = Vector3(0.,0.,0.)
         self.dt             = self.dt      
+
         self.Cnb.reset(_att)
-        self.Cdelta(Vector3(0.0, 0.0, 0.0))
         self.ControllerAzim.reset()
         self.ControllerElev.reset()
-        self.dpos           = Vector3.cast(self.Qnb.rotate([self.scavel, 0, 0]))
+        self.IntegAtt_y.reset()
+        self.IntegAtt_z.reset()
+        self.IntegPos_x.reset()
+        self.IntegPos_y.reset()
+        self.IntegPos_z.reset()
+
+        self.dpos           = self.Cnb.rotate(Vector3.cast([self.scavel, 0, 0]))
         
         #print('just after reset : ',self.Qnb)
         self.reset_flag     = reset_flag
@@ -153,9 +159,11 @@ class Seeker:
         self.dLOS       = Vector3(0., 0., 0.) # body frame
         self.prevLOS    = Vector3(0.,LOSy, LOSz)
 
-        Lookz, Looky    = self.azimNelev(self.Rvec - self.direcVec)
+        Lookz, Looky    = self.azimNelev(Missile.Cnb.rotate(self.Rvec))
         self.Look       = Vector3(0., Looky, Lookz)
-        self.Aiming     = 0
+        self.pLook      = copy.deepcopy(self.Look)
+        self.ppLook     = copy.deepcopy(self.pLook)
+
 
         self.firstrun   = True
 
@@ -200,7 +208,6 @@ class Seeker:
         self.Look       = Vector3.cast(np.arctan2(np.cross(self.direcVec.vec,self.Rvec.vec),\
                                                     np.dot(self.direcVec.vec,self.Rvec.vec)))
         
-        self.Aiming     = np.dot(self.Rvec.vec, self.direcVec.vec)/self.Rvec.mag/self.direcVec.mag
         RjxVj = np.cross(self.Rvec.vec, self.Vvec.vec)
         RjdRj = np.dot(self.Rvec.vec, self.Rvec.vec)
         Ldotn = RjxVj/RjdRj
