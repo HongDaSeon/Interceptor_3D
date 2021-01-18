@@ -80,7 +80,7 @@ class Missile_3D:
         self.ControllerAccZ = Daseon.SecondOrder(5, 0.75, dt)
         self.ControllerAccY = Daseon.SecondOrder(5, 0.75, dt)
         self.acc            = Vector3(0.,0.,0.)
-        self.dpos           = Cnb.rotate(self.bodyVelDir, 'inv')
+        self.dpos           = self.Cnb.rotate(self.bodyVelDir, 'inv')
         self.actuation      = Vector3(0.,0.,0.)
         
         self.dt             = dt
@@ -106,7 +106,7 @@ class Missile_3D:
         
         self.Cnb.update(self.att)
 
-        self.dpos           = Cnb.rotate(self.bodyVelDir, 'inv')
+        self.dpos           = self.Cnb.rotate(self.bodyVelDir, 'inv')
 
         self.pos.x          = self.IntegPos_x.step(self.dpos.x)
         self.pos.y          = self.IntegPos_y.step(self.dpos.y)
@@ -123,13 +123,13 @@ class Missile_3D:
         self.dt             = self.dt      
 
         self.Cnb.reset(_att)
-        self.ControllerAzim.reset()
-        self.ControllerElev.reset()
-        self.IntegAtt_y.reset()
-        self.IntegAtt_z.reset()
-        self.IntegPos_x.reset()
-        self.IntegPos_y.reset()
-        self.IntegPos_z.reset()
+        self.ControllerAccZ.reset()
+        self.ControllerAccY.reset()
+        self.IntegAtt_y.reset(_att.y)
+        self.IntegAtt_z.reset(_att.z)
+        self.IntegPos_x.reset(_pos.x)
+        self.IntegPos_y.reset(_pos.y)
+        self.IntegPos_z.reset(_pos.z)
 
         self.dpos           = self.Cnb.rotate(Vector3.cast([self.scavel, 0, 0]))
         
@@ -206,17 +206,17 @@ class Seeker:
             #print('t=0 detected')
         self.ppLook     = copy.deepcopy(self.pLook)
         self.pLook      = copy.deepcopy(self.Look) 
-        Lookz, Looky    = self.azimNelev(Missile.Cnb.rotate(self.Rvec))
+        Lookz, Looky    = self.azimNelev(self.Missile.Cnb.rotate(self.Rvec))
         self.Look       = Vector3(0., Looky, Lookz)
 
         RjxVj = np.cross(self.Rvec.vec, self.Vvec.vec)
         RjdRj = np.dot(self.Rvec.vec, self.Rvec.vec)
         Ldotn = RjxVj/RjdRj
         
-        Ldotb = self.Missile.Qnb.inverse.rotate(Ldotn)
-        self.dLOS = Vector3.cast(Ldotb)
+        Ldotb = self.Missile.Cnb.rotate(Vector3.cast(Ldotn),'inv')
+        self.dLOS = Ldotb
         self.Missile.reset_flag = False
-        Vvecb = Vector3.cast(self.Missile.Qnb.inverse.rotate(self.Vvec.vec))
+        Vvecb = self.Missile.Cnb.rotate(Vector3.cast(self.Vvec.vec), 'inv')
         return self.Rvec.mag, self.Look, self.dLOS, self.Missile.scavel,\
                                                     np.array([  normLk(self.ppLook.y), normLk(self.pLook.y), normLk(self.Look.y),\
                                                                 normLk(self.ppLook.z), normLk(self.pLook.z), normLk(self.Look.z)])
@@ -228,7 +228,7 @@ class Seeker:
 
     def spit_reward(self, acc):
         
-        OOR         = (self.Look.x < -1.57)|(self.Look.x > 1.57)|(self.Look.y < -1.57)|(self.Look.y > 1.57)|(self.Look.z < -1.57)|(self.Look.z > 1.57)|(self.Rvec.mag>20000)  # Out of range
+        OOR         = (self.Look.y < -1.57)|(self.Look.y > 1.57)|(self.Look.z < -1.57)|(self.Look.z > 1.57)|(self.Rvec.mag>20000)  # Out of range
         if OOR:
             Rf_1 = self.prev_Rm
             Rf = self.Missile.pos

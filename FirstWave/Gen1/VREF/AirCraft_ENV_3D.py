@@ -37,7 +37,7 @@
 
 import PSpincalc as spin
 from pyquaternion import Quaternion
-from DaseonTypes import Vector3
+from DaseonTypesNtf import Vector3
 import math as m
 import numpy as np
 import torch

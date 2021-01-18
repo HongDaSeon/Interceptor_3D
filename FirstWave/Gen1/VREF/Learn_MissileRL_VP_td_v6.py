@@ -38,11 +38,11 @@ import torch.optim as optim
 import time
 import copy
 import pickle
-import Missile_Env_6DOFg3 as MissileEnv
+import Missile_Env_5DOF_Gen6 as MissileEnv
 import AirCraft_ENV_3D as AirCrftEnv
 import csv
 
-from DaseonTypes import Vector3, ASCIIart
+from DaseonTypesNtf import Vector3, ASCIIart
 
 from torch.distributions import Normal
                              
@@ -83,6 +83,7 @@ dtSim = 0.1
 animcounter = 0
 aclr = 1e-4
 crlr = 1e-4
+NNtolerance = 1e-10
 # nn param
 gpu_num = int(sys.argv[1])
 mu_now = 0
@@ -129,7 +130,7 @@ class ActorNet(nn.Module):
         self.hd     = nn.Linear(200, 400)
         self.hd2     = nn.Linear(400, 200)
         #self.hd3     = nn.Linear(200, 100)
-        self.mu_layer = nn.Linear(200, 3)
+        self.mu_layer = nn.Linear(200, 2)
         
         torch.nn.init.xavier_uniform_(self.fc.weight)
         torch.nn.init.xavier_uniform_(self.hd.weight)   
@@ -153,7 +154,7 @@ class CriticNet(nn.Module):
 
     def __init__(self):
         super(CriticNet, self).__init__()
-        self.fc = nn.Linear(12, 200)
+        self.fc = nn.Linear(8, 200)
         self.hd = nn.Linear(200, 400)
         self.hd2 = nn.Linear(400, 200)
         #self.hd3 = nn.Linear(200, 100)
@@ -168,19 +169,21 @@ class CriticNet(nn.Module):
         self.PreluWeightC = torch.rand(400).to(device)
 
     def forward(self, s, k, a):
+
         s   = s.to(device)
         k   = k.to(device)
         a   = a.to(device)
-        s = torch.cat([s, k], dim=1)
-        x = self.fc(torch.cat([s, a], dim=1))
 
+        #s = torch.cat([s, k], dim=1)
+        
+        x = self.fc(torch.cat([s, a], dim=1))
+        
         x = F.tanh(self.hd(x))
         x = F.tanh(self.hd2(x))
         #x = F.tanh(self.hd3(x))
         state_value = self.Q_layer(x)
         state_value = state_value.to('cpu')
         return state_value
-
 
 class Memory():
 
@@ -211,9 +214,9 @@ class Agent():
         self.var = 1
         self.eval_cnet, self.target_cnet = CriticNet().to(device).float(), CriticNet().to(device).float()
         self.eval_anet, self.target_anet = ActorNet().to(device).float(), ActorNet().to(device).float()
-        self.memory = Memory(70000) #2000 #40000
-        self.optimizer_c = optim.Adam(self.eval_cnet.parameters(), lr=crlr)
-        self.optimizer_a = optim.Adam(self.eval_anet.parameters(), lr=aclr)
+        self.memory = Memory(50000) #2000 #40000
+        self.optimizer_c = optim.Adam(self.eval_cnet.parameters(), lr=crlr, eps = NNtolerance)
+        self.optimizer_a = optim.Adam(self.eval_anet.parameters(), lr=aclr, eps = NNtolerance)
 
     def select_action(self, state):
         global mu_now
@@ -239,7 +242,7 @@ class Agent():
         
         self.training_step += 1
         
-        transitions = self.memory.sample(5000)
+        transitions = self.memory.sample(200)
         s = torch.tensor([t.s for t in transitions], dtype=torch.float)
         a = torch.tensor([t.a for t in transitions], dtype=torch.float)
         r = torch.tensor([t.r for t in transitions], dtype=torch.float).view(-1, 1)
@@ -359,11 +362,13 @@ def init_picker():
     init_hed = Vector3(0., headelev, headazim)
     
     #init_hed = Vector3(0., rand_lam.y-m.pi+(rd.random()-0.5)*m.pi, rand_lam.z-m.pi+(rd.random()-0.5)*m.pi)
-
-
-    
+   
     init_spd = (maxSpeed - minSpeed)*rd.random() + minSpeed
 
+    # override
+    init_hed = Vector3(0., -0.275613, 0.305232)
+    init_spd = 400
+    init_pos = Vector3(-15145, -6060, 11206)
     return init_pos, init_hed, init_spd  
          
 
@@ -371,7 +376,7 @@ def Transmit2Vpython(MissileInstance, MissileSeekerInstance, t, td_reward):
     global LOOK_elev_graph, LOOK_azim_graph, R_graph, accy_graph, accz_graph
     global rwd_graph, missile_visual, xy_traj, xz_traj
     global graph_step_count
-    global muy_graph, muz_graph, ExpectedRWD
+    global muy_graph, ExpectedRWD
 
     if vpythonsim & (not M_done):
         R, LOOK, dLOS, Scalvel, _ = MissileSeekerInstance.seek(t)
@@ -387,7 +392,6 @@ def Transmit2Vpython(MissileInstance, MissileSeekerInstance, t, td_reward):
 
         mux_graph.plot(t, mu_now[0])
         muy_graph.plot(t, mu_now[1])
-        muz_graph.plot(t, mu_now[2])
         
         #rwd_graph.plot(t,td_reward)
         missile_visual.pos  = MissileInstance.pos.VPvec
@@ -419,7 +423,7 @@ def VpythonClearGraph():
     accz_graph.delete()
     mux_graph.delete()
     muy_graph.delete()
-    muz_graph.delete()
+
     rwd_graph.delete()
     ExpectedRWD.delete()
 
@@ -530,7 +534,7 @@ if vpythonsim:
     accz_graph  = vp.gdots(graph = g5, color = vp.color.black, radius=1)
     mux_graph   = vp.gdots(graph = g35, color = vp.color.red, radius=1)
     muy_graph   = vp.gdots(graph = g4, color = vp.color.red, radius=1)
-    muz_graph   = vp.gdots(graph = g5, color = vp.color.red, radius=1)
+
     rwd_graph   = vp.gdots(graph = g6, color = vp.color.blue, radius=1)
     stt_graph   = vp.gdots(graph = g7, color = vp.color.green, radius=1)
     #xy_traj     = vp.gdots(graph = g8, color = vp.vec(rd.random(),rd.random(),rd.random()), radius = 1)
@@ -593,6 +597,7 @@ for i_ep in range(5000000):
     step_count = 0
     MissileSeeker_1.impactR = 50000
     _, initLook, LOSdot, _, state = MissileSeeker_1.seek(t)
+    #print(state)
     Look = initLook
     energy_term = []
     energy = 0
@@ -603,7 +608,7 @@ for i_ep in range(5000000):
     while t<max_step_count:
         MissileSeeker_1.newStepStarts(t)
         action = agent.select_action(state)
-        Acc_cmd = Vector3(action[0], action[1], action[2])
+        Acc_cmd = Vector3(0., action[0], action[1])
 
         MissileModel_1.simulate(Acc_cmd)
         
@@ -630,16 +635,14 @@ for i_ep in range(5000000):
 
         
 
-        final_reward =    1*norm_R_reward(Mm_reward) \
-                    + 0.0\
-                    + 0.0*norm_Acc(Mt_reward[0],spdM, initLook.y)\
-                    + 0.0*norm_Acc(Mt_reward[1],spdM, initLook.z)
+        final_reward =    1*norm_R_reward(Mm_reward)
+                    
         score = final_reward*M_done
         if verbous: print('Score : ',score)
         proceeding = 1
         if M_done: proceeding = 0
 
-        agent.store_transition(Transition(state, np.array([Acc_cmd.x,Acc_cmd.y,Acc_cmd.z]), score, state_, proceeding, Look.vec, Look_.vec))
+        agent.store_transition(Transition(state, np.array([Acc_cmd.y,Acc_cmd.z]), score, state_, proceeding, Look.vec, Look_.vec))
         
         #print(Mm_reward)
 
@@ -670,6 +673,7 @@ for i_ep in range(5000000):
         
         if M_done:
             print(M_is_hit)
+            #pdb.set_trace()
             break
 
     
@@ -700,7 +704,7 @@ for i_ep in range(5000000):
     # Generating LearningCurve
     T1 = time.time()
     write_LearningCurve([i_ep, score, running_reward])
-    print(time.time()-T1)
+    #print(time.time()-T1)
         #a_render = True
     if M_is_hit:
         print("Solved! Running reward is now {}!".format(running_reward))
